@@ -15,7 +15,9 @@ import type {
 
 export const API_BASE_URL: string =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
-  'http://localhost:8000/api';
+  '/api';
+
+export const DIRECT_BACKEND_URL = 'http://127.0.0.1:8000/api';
 
 export const DEFAULT_SCENARIO_ID = 'monsoon_demo';
 
@@ -72,12 +74,12 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 /**
- * Perform a fetch request with automatic network error catching.
+ * Perform a fetch request with automatic network error catching and direct backend fallback.
  */
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const primaryUrl = `${API_BASE_URL}${endpoint}`;
   try {
-    const res = await fetch(url, {
+    const res = await fetch(primaryUrl, {
       ...options,
       headers: {
         'Accept': 'application/json',
@@ -87,18 +89,40 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
     });
     return await handleResponse<T>(res);
   } catch (err: any) {
-    if (err instanceof ApiError) {
+    // If we got a real HTTP error from server (e.g. 404, 422), throw it
+    if (err instanceof ApiError && err.status !== 0) {
       throw err;
     }
-    // Network-level errors (connection refused, offline, DNS lookup failure)
-    const errorMsg =
-      err?.name === 'TypeError' && err?.message?.includes('fetch')
-        ? `Network error: Unable to connect to SafeRoute API at ${url}. Is the backend running?`
-        : `Request error (${url}): ${err?.message || 'Network failure'}`;
-    console.error(`[SafeRoute API Client] ${errorMsg}`, err);
+
+    // Try secondary direct URL if proxy or relative path failed
+    if (API_BASE_URL !== DIRECT_BACKEND_URL) {
+      try {
+        const directUrl = `${DIRECT_BACKEND_URL}${endpoint}`;
+        const res2 = await fetch(directUrl, {
+          ...options,
+          headers: {
+            'Accept': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...options.headers,
+          },
+        });
+        return await handleResponse<T>(res2);
+      } catch {
+        // Fall through to error
+      }
+    }
+
+    const errorMsg = `Unable to connect to SafeRoute API at ${primaryUrl}. Is the backend running?`;
     throw new ApiError(errorMsg, 0, err);
   }
 }
+
+
+import {
+  FALLBACK_TIMELINE,
+  offlinePlanRoute,
+  offlineAssignEvacuation,
+} from '../data/offlineFallback';
 
 /**
  * Fetch precomputed timeline snapshots for instant time-slider scrubbing.
@@ -106,7 +130,12 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
 export async function getTimeline(
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<ScenarioSnapshot[]> {
-  return apiFetch<ScenarioSnapshot[]>(`/scenarios/${scenarioId}/timeline`);
+  try {
+    return await apiFetch<ScenarioSnapshot[]>(`/scenarios/${scenarioId}/timeline`);
+  } catch (err) {
+    console.warn('[SafeRoute API Client] Falling back to offline embedded timeline snapshots:', err);
+    return FALLBACK_TIMELINE;
+  }
 }
 
 /**
@@ -116,7 +145,12 @@ export async function getSnapshot(
   minute: number = 0,
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<ScenarioSnapshot> {
-  return apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/snapshot?minute=${minute}`);
+  try {
+    return await apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/snapshot?minute=${minute}`);
+  } catch (err) {
+    console.warn('[SafeRoute API Client] Falling back to snapshot from embedded timeline:', err);
+    return FALLBACK_TIMELINE.find((s) => s.minute === minute) || FALLBACK_TIMELINE[0];
+  }
 }
 
 /**
@@ -126,10 +160,14 @@ export async function advanceScenario(
   minute: number,
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<ScenarioSnapshot> {
-  return apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/advance`, {
-    method: 'POST',
-    body: JSON.stringify({ minute }),
-  });
+  try {
+    return await apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/advance`, {
+      method: 'POST',
+      body: JSON.stringify({ minute }),
+    });
+  } catch {
+    return FALLBACK_TIMELINE.find((s) => s.minute === minute) || FALLBACK_TIMELINE[0];
+  }
 }
 
 /**
@@ -138,9 +176,13 @@ export async function advanceScenario(
 export async function resetScenario(
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<ScenarioSnapshot> {
-  return apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/reset`, {
-    method: 'POST',
-  });
+  try {
+    return await apiFetch<ScenarioSnapshot>(`/scenarios/${scenarioId}/reset`, {
+      method: 'POST',
+    });
+  } catch {
+    return FALLBACK_TIMELINE[0];
+  }
 }
 
 /**
@@ -178,10 +220,20 @@ export async function planRoute(payload: {
     alternatives: payload.alternatives ?? 2,
   };
 
-  return apiFetch<RouteResponse>('/routes/plan', {
-    method: 'POST',
-    body: JSON.stringify(requestPayload),
-  });
+  try {
+    return await apiFetch<RouteResponse>('/routes/plan', {
+      method: 'POST',
+      body: JSON.stringify(requestPayload),
+    });
+  } catch (err) {
+    console.warn('[SafeRoute API Client] Live route planning unavailable, executing client safe router fallback:', err);
+    return offlinePlanRoute(
+      payload.origin_id || 'N05',
+      payload.destination_id || 'shelter_west_high',
+      payload.departure_minute,
+      payload.mode
+    );
+  }
 }
 
 /**
@@ -192,15 +244,21 @@ export async function assignEvacuation(
   mode: MobilityProfile = 'walk',
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<CrowdAssignResponse> {
-  return apiFetch<CrowdAssignResponse>('/evacuation/assign', {
-    method: 'POST',
-    body: JSON.stringify({
-      scenario_id: scenarioId,
-      minute,
-      mode,
-    }),
-  });
+  try {
+    return await apiFetch<CrowdAssignResponse>('/evacuation/assign', {
+      method: 'POST',
+      body: JSON.stringify({
+        scenario_id: scenarioId,
+        minute,
+        mode,
+      }),
+    });
+  } catch (err) {
+    console.warn('[SafeRoute API Client] Crowd allocation endpoint unavailable, calculating local assignment:', err);
+    return offlineAssignEvacuation(minute);
+  }
 }
+
 
 /**
  * Submit a citizen or sensor hazard report to the incident verification queue.

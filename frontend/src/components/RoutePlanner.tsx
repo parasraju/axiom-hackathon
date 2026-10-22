@@ -26,7 +26,9 @@ export interface RoutePlannerProps {
   selectedRouteId: string | null;
   onSelectRoute: (candidate: RouteCandidate) => void;
   loading: boolean;
+  onClearRoute?: () => void;
 }
+
 
 const FALLBACK_ORIGINS: Partial<OriginZone>[] = [
   { id: 'origin_central', name: 'Downtown Central Sector', node_id: 'N05', population: 500 },
@@ -50,7 +52,9 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   selectedRouteId,
   onSelectRoute,
   loading,
+  onClearRoute,
 }) => {
+
   const effectiveOrigins = origins.length > 0 ? origins : (FALLBACK_ORIGINS as OriginZone[]);
   const effectiveShelters = shelters.length > 0 ? shelters : (FALLBACK_SHELTERS as Shelter[]);
 
@@ -261,12 +265,25 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                   : 'Route Calculation Status:'}
               </span>
             </div>
-            {routeResult.status === 'route_found' && (
-              <span className="text-[10px] text-slate-400 font-mono">
-                {1 + (routeResult.alternatives?.length || 0)} candidate{routeResult.alternatives?.length ? 's' : ''}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {routeResult.status === 'route_found' && (
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {1 + (routeResult.alternatives?.length || 0)} candidate{routeResult.alternatives?.length ? 's' : ''}
+                </span>
+              )}
+              {onClearRoute && (
+                <button
+                  type="button"
+                  onClick={onClearRoute}
+                  className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition border border-slate-700 cursor-pointer"
+                  title="Clear active route from map"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
+
 
           {/* Emergency Warning when no route is found */}
           {routeResult.status === 'no_route_found' ? (

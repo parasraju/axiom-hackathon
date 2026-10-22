@@ -234,7 +234,20 @@ def assign_evacuation(payload: CrowdAssignRequest) -> CrowdAssignResponse:
         minute=payload.minute,
         mode=mode_str,
     )
+    for alloc in resp.shelter_allocations:
+        s_id = getattr(alloc, "shelter_id", None) or (alloc.get("shelter_id") if isinstance(alloc, dict) else None)
+        final_occ = getattr(alloc, "final_occupancy", None) if hasattr(alloc, "final_occupancy") else (alloc.get("final_occupancy") if isinstance(alloc, dict) else None)
+        status_val = getattr(alloc, "status", None) if hasattr(alloc, "status") else (alloc.get("status") if isinstance(alloc, dict) else None)
+        target = next((s for s in scenario_mgr.shelters if s.id == s_id), None)
+        if target:
+            if final_occ is not None:
+                target.occupancy = final_occ
+            if status_val:
+                target.status = status_val
+    scenario_mgr.build_timeline()
+    sync_graph_to_minute(payload.minute)
     return resp
+
 
 
 @router.get("/shelters")

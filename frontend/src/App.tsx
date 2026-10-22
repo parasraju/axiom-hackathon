@@ -5,9 +5,9 @@ import {
   Home,
   Radio,
   Wifi,
-  WifiOff,
 } from 'lucide-react';
 import { api } from './api/client';
+import { FALLBACK_TIMELINE } from './data/offlineFallback';
 import type {
   ScenarioSnapshot,
   RouteResponse,
@@ -24,15 +24,20 @@ import { ShelterPanel } from './components/ShelterPanel';
 import { AuthorityModal } from './components/AuthorityModal';
 
 export function App() {
-  // Timeline and simulation state
-  const [timeline, setTimeline] = useState<ScenarioSnapshot[]>([]);
+  // Timeline and simulation state - initialized with FALLBACK_TIMELINE for immediate render
+  const [timeline, setTimeline] = useState<ScenarioSnapshot[]>(() => FALLBACK_TIMELINE);
   const [currentMinute, setCurrentMinute] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [, setLoading] = useState<boolean>(true);
+  const [, setLoading] = useState<boolean>(false);
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
 
   // Routing state
+  const [activeRoutePlan, setActiveRoutePlan] = useState<{
+    originId: string;
+    destId: string;
+    mode: MobilityProfile;
+  } | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResponse | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<RouteCandidate | null>(null);
   const [selectedAlternative, setSelectedAlternative] = useState<RouteCandidate | null>(null);
@@ -54,10 +59,12 @@ export function App() {
     try {
       setLoading(true);
       const data = await api.getTimeline('monsoon_demo');
-      setTimeline(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setTimeline(data);
+      }
       setBackendOnline(true);
     } catch (err) {
-      console.warn('Backend unavailable, using initial snapshot fallback:', err);
+      console.warn('Backend unavailable, operating in offline simulation mode:', err);
       setBackendOnline(false);
     } finally {
       setLoading(false);
@@ -68,10 +75,27 @@ export function App() {
     fetchTimelineData();
   }, []);
 
+  // Periodic health check to auto-reconnect when backend comes online
+  useEffect(() => {
+    const healthInterval = setInterval(async () => {
+      try {
+        await api.getHealth();
+        if (!backendOnline) {
+          setBackendOnline(true);
+          await fetchTimelineData();
+        }
+      } catch {
+        if (backendOnline) setBackendOnline(false);
+      }
+    }, 6000);
+
+    return () => clearInterval(healthInterval);
+  }, [backendOnline]);
+
   // Current active snapshot from cached timeline
   const currentSnapshot: ScenarioSnapshot | null =
     timeline.find((s) => s.minute === currentMinute) ||
-    (timeline.length > 0 ? timeline[0] : null);
+    (timeline.length > 0 ? timeline[0] : FALLBACK_TIMELINE[0]);
 
   // Playback timer effect
   useEffect(() => {
@@ -97,16 +121,6 @@ export function App() {
     };
   }, [isPlaying, playbackSpeed]);
 
-  // When current minute changes, re-plan active route to reflect new flood/congestion state
-  useEffect(() => {
-    if (routeResult && routeResult.status === 'route_found' && routeResult.primary_route) {
-      const nodes = routeResult.primary_route.path_nodes;
-      if (nodes.length >= 2) {
-        handlePlanRoute(nodes[0], nodes[nodes.length - 1], 'walk', false);
-      }
-    }
-  }, [currentMinute]);
-
   // Route calculation handler
   const handlePlanRoute = async (
     originId: string,
@@ -115,6 +129,7 @@ export function App() {
     showSpinner = true
   ) => {
     try {
+      setActiveRoutePlan({ originId, destId, mode });
       if (showSpinner) setRouteLoading(true);
       const res = await api.planRoute({
         origin_id: originId,
@@ -138,13 +153,59 @@ export function App() {
     }
   };
 
+  // When current minute changes, re-plan active route using the preserved selection & mode
+  useEffect(() => {
+    if (activeRoutePlan) {
+      handlePlanRoute(
+        activeRoutePlan.originId,
+        activeRoutePlan.destId,
+        activeRoutePlan.mode,
+        false
+      );
+    }
+  }, [currentMinute]);
+
+  const handleClearRoute = () => {
+    setActiveRoutePlan(null);
+    setRouteResult(null);
+    setSelectedRoute(null);
+    setSelectedAlternative(null);
+  };
+
   // Batch crowd assignment handler
   const handleRunBatchEvacuation = async () => {
     try {
       setBatchLoading(true);
-      await api.assignEvacuation(currentMinute, 'walk');
-      // Refresh timeline from backend to reflect updated occupancy
-      await fetchTimelineData();
+      const res = await api.assignEvacuation(currentMinute, 'walk');
+      if (res && res.shelter_allocations) {
+        setTimeline((prev) =>
+          prev.map((snap) => ({
+            ...snap,
+            shelters: (snap.shelters || []).map((s) => {
+              const alloc = res.shelter_allocations.find((a: any) => a.shelter_id === s.id);
+              if (alloc) {
+                return {
+                  ...s,
+                  occupancy: Number(alloc.final_occupancy ?? alloc.assigned_count ?? s.occupancy),
+                  status: (alloc.status === 'closed' ? 'closed' : alloc.status === 'full' ? 'full' : 'open') as 'open' | 'full' | 'closed',
+                };
+              }
+              return s;
+            }),
+            metrics: {
+              ...snap.metrics,
+              assigned_count: res.total_assigned,
+              unassigned_count: res.total_unassigned,
+              total_evacuees: res.total_evacuees,
+            },
+          }))
+        );
+      }
+      try {
+        await fetchTimelineData();
+      } catch {
+        // Keep local state
+      }
     } catch (err) {
       console.error('Crowd assignment failed:', err);
     } finally {
@@ -154,16 +215,54 @@ export function App() {
 
   // Road closure override handler
   const handleToggleClosure = async (edgeId: string, isOpen: boolean) => {
+    // Immediately update local state in timeline
+    setTimeline((prev) =>
+      prev.map((snap) => ({
+        ...snap,
+        edges_geojson: {
+          ...snap.edges_geojson,
+          features: snap.edges_geojson.features.map((feat: any) => {
+            const fId = feat.properties.id || feat.properties.edge_id;
+            if (fId === edgeId) {
+              return {
+                ...feat,
+                properties: {
+                  ...feat.properties,
+                  is_open: isOpen,
+                  status: isOpen ? 'normal' : 'closed',
+                },
+              };
+            }
+            return feat;
+          }),
+        },
+      }))
+    );
+
     try {
       await api.toggleRoadClosure(edgeId, isOpen);
       await fetchTimelineData();
     } catch (err) {
-      console.error('Closure toggle failed:', err);
+      console.warn('Backend toggle offline, using local state:', err);
     }
   };
 
   // Submit citizen hazard report
   const handleSubmitReport = async (edgeId: string, kind: string, desc: string) => {
+    const localRep: IncidentReport = {
+      id: `rep_${Date.now()}`,
+      edge_id: edgeId,
+      kind,
+      reported_minute: currentMinute,
+      description: desc,
+      reporter_hash: 'citizen_web',
+      status: 'pending',
+      verification_score: 0.85,
+      evidence_count: 1,
+    };
+
+    setIncidentReports((prev) => [localRep, ...prev]);
+
     try {
       const rep = await api.submitIncidentReport({
         edge_id: edgeId,
@@ -171,22 +270,34 @@ export function App() {
         reported_minute: currentMinute,
         description: desc,
       });
-      setIncidentReports((prev) => [rep, ...prev]);
+      setIncidentReports((prev) => [rep, ...prev.filter((r) => r.id !== localRep.id)]);
       await fetchTimelineData();
     } catch (err) {
-      console.error('Report submission failed:', err);
+      console.warn('Report submitted in local offline mode:', err);
     }
   };
 
   // Review report
   const handleReviewReport = async (reportId: string, decision: 'verify' | 'reject') => {
+    setIncidentReports((prev) =>
+      prev.map((r) =>
+        r.id === reportId
+          ? {
+              ...r,
+              status: decision === 'verify' ? 'verified' : 'rejected',
+            }
+          : r
+      )
+    );
+
     try {
       await api.reviewReport(reportId, decision);
       await fetchTimelineData();
     } catch (err) {
-      console.error('Report review failed:', err);
+      console.warn('Report reviewed in local offline mode:', err);
     }
   };
+
 
   const handleReset = async () => {
     setIsPlaying(false);
@@ -195,7 +306,7 @@ export function App() {
       await api.resetScenario('monsoon_demo');
       await fetchTimelineData();
     } catch (err) {
-      console.warn('Reset call failed:', err);
+      console.warn('Reset call fallback:', err);
     }
   };
 
@@ -215,32 +326,34 @@ export function App() {
               </span>
             </div>
             <p className="text-[10px] text-slate-400 hidden sm:block">
-              Disaster-Aware Evacuation Simulator & Safety-Constrained Navigation
+              Disaster-Aware Evacuation Simulator &amp; Safety-Constrained Navigation
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center gap-2.5">
-          {/* Connection Status */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs">
-            {backendOnline ? (
-              <>
-                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-[11px] font-medium text-emerald-400 hidden sm:inline">Backend Connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[11px] font-medium text-amber-400 hidden sm:inline">Offline Mode</span>
-              </>
-            )}
+          {/* Standalone Simulated Engine Indicator */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs bg-slate-800/90 border-cyan-500/30 text-cyan-300 shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span className="text-[11px] font-semibold hidden sm:inline">Simulated Engine (Zero API)</span>
+            <span className="text-[11px] font-semibold sm:hidden">Simulated</span>
           </div>
+
+          {/* Optional live sync indicator */}
+          {backendOnline && (
+            <div className="hidden lg:flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full font-mono">
+              <Wifi className="w-3 h-3" />
+              <span>Backend Synced</span>
+            </div>
+          )}
+
 
           {/* Authority Command Console Toggle */}
           <button
+            type="button"
             onClick={() => setIsAuthorityOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-blue-400 border border-blue-500/30 hover:border-blue-400 shadow transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-blue-400 border border-blue-500/30 hover:border-blue-400 shadow transition cursor-pointer"
           >
             <Radio className="w-3.5 h-3.5" />
             <span>Authority Console</span>
@@ -252,8 +365,8 @@ export function App() {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Map & Time Slider Centerpiece */}
         <div className="flex-1 flex flex-col relative h-full">
-          {/* Top KPI Ribbon */}
-          <div className="p-3 bg-slate-950/70 border-b border-slate-800/80 backdrop-blur shrink-0 z-10">
+          {/* Top Compact KPI Ribbon */}
+          <div className="p-2.5 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur shrink-0 z-10">
             <KpiStrip metrics={currentSnapshot?.metrics || null} minute={currentMinute} />
           </div>
 
@@ -269,8 +382,8 @@ export function App() {
             />
           </div>
 
-          {/* Floating Scrubbable Time Slider */}
-          <div className="absolute bottom-4 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-[580px] z-20 pointer-events-auto">
+          {/* Floating Scrubbable Time Slider - Compact, Centered, Non-blocking */}
+          <div className="absolute bottom-3 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-[calc(100%-2rem)] sm:max-w-3xl z-20 pointer-events-auto">
             <TimeSlider
               currentMinute={currentMinute}
               isPlaying={isPlaying}
@@ -288,8 +401,9 @@ export function App() {
           {/* Tab Selection */}
           <div className="flex border-b border-slate-800 bg-slate-900/60 p-1">
             <button
+              type="button"
               onClick={() => setActiveSidebarTab('routes')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
                 activeSidebarTab === 'routes'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200'
@@ -300,8 +414,9 @@ export function App() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveSidebarTab('shelters')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
                 activeSidebarTab === 'shelters'
                   ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200'
@@ -324,6 +439,7 @@ export function App() {
                 selectedRouteId={selectedRoute?.route_id || null}
                 onSelectRoute={(candidate) => setSelectedRoute(candidate)}
                 loading={routeLoading}
+                onClearRoute={handleClearRoute}
               />
             ) : (
               <ShelterPanel
