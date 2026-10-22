@@ -184,7 +184,7 @@ SEED_EDGES: List[RoadEdge] = [
         length_m=300.0,
         baseline_speed_kmh=35.0,
         modes=["walk", "wheelchair", "vehicle"],
-        flood_threshold_m=0.18,  # Underpass, low threshold
+        flood_threshold_m=0.20,  # Underpass, low threshold (0.20m)
         geometry=_make_line([[74.8740, 31.6320], [74.8770, 31.6325]]),
     ),
     RoadEdge(
@@ -194,7 +194,7 @@ SEED_EDGES: List[RoadEdge] = [
         length_m=300.0,
         baseline_speed_kmh=35.0,
         modes=["walk", "wheelchair", "vehicle"],
-        flood_threshold_m=0.18,
+        flood_threshold_m=0.20,
         geometry=_make_line([[74.8770, 31.6325], [74.8740, 31.6320]]),
     ),
     # West Bank Roads
@@ -334,7 +334,7 @@ SEED_SHELTERS: List[Shelter] = [
         name="Hilltop Observation Center",
         lon=74.8850,
         lat=31.6360,
-        capacity=250,
+        capacity=300,
         occupancy=0,
         accessible=False,  # High elevation steps
         services=["satellite_radio", "emergency_shelter"],
@@ -383,11 +383,19 @@ SEED_ORIGINS: List[OriginZone] = [
 
 
 SEED_EVENTS: List[ScenarioEvent] = [
+    ScenarioEvent(minute=0, event_type="flood_expand", target_id="zone_river_south", value=0.0),
     ScenarioEvent(minute=15, event_type="flood_expand", target_id="zone_river_south", value=0.08),
+    ScenarioEvent(minute=15, event_type="flood_expand", target_id="E15_BRIDGE_SOUTH_EW", value=0.08),
+    ScenarioEvent(minute=15, event_type="flood_expand", target_id="E16_BRIDGE_SOUTH_WE", value=0.08),
     ScenarioEvent(minute=30, event_type="flood_expand", target_id="E15_BRIDGE_SOUTH_EW", value=0.28),
+    ScenarioEvent(minute=30, event_type="flood_expand", target_id="E16_BRIDGE_SOUTH_WE", value=0.28),
     ScenarioEvent(minute=30, event_type="road_close", target_id="E15_BRIDGE_SOUTH_EW", value=True),
     ScenarioEvent(minute=30, event_type="road_close", target_id="E16_BRIDGE_SOUTH_WE", value=True),
     ScenarioEvent(minute=45, event_type="demand_increase", target_id="origin_central", value=150),
+    ScenarioEvent(minute=60, event_type="flood_expand", target_id="zone_river_south", value=0.45),
+    ScenarioEvent(minute=60, event_type="flood_expand", target_id="E15_BRIDGE_SOUTH_EW", value=0.40),
+    ScenarioEvent(minute=60, event_type="road_close", target_id="E11_N05_N07", value=True),
+    ScenarioEvent(minute=60, event_type="road_close", target_id="E12_N07_N05", value=True),
     ScenarioEvent(minute=60, event_type="shelter_fill", target_id="shelter_east_center", value=200),
 ]
 
