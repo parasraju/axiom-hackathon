@@ -76,11 +76,11 @@ class IncidentVerifier:
             edge_id_str = str(edge_id)
             minute = int(reported_minute)
 
-            # Check existing pending reports for the same edge_id within 15 minutes
+            # Check existing pending or active verified reports for the same edge_id within 15 minutes
             for rep in self.reports.values():
                 if (
                     rep.get("edge_id") == edge_id_str
-                    and rep.get("status") == "pending"
+                    and rep.get("status") in ("pending", "verified")
                     and abs(rep.get("reported_minute", 0) - minute) <= 15
                 ):
                     # Corroborating evidence
@@ -88,7 +88,7 @@ class IncidentVerifier:
                     new_score = round(rep["verification_score"] + 0.35, 2)
                     rep["verification_score"] = min(1.0, new_score)
 
-                    if rep["verification_score"] >= 0.70:
+                    if rep["verification_score"] >= 0.70 and rep.get("status") == "pending":
                         rep["status"] = "verified"
 
                     if description and not rep.get("description"):

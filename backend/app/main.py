@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import router as api_router
+
+from app.api.endpoints import router as api_router, scenario_mgr
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Lifespan event handler initializing ScenarioManager timeline on startup."""
+    scenario_mgr.build_timeline()
+    yield
+
 
 app = FastAPI(
     title="SafeRoute Emergency Navigation API",
     description="Disaster-response evacuation simulation and hazard-aware routing API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS Middleware for Hackathon frontend integration

@@ -256,6 +256,8 @@ class RoadGraph:
         congestion_ratio: Optional[float] = None,
         status: Optional[str] = None,
         travel_time_s: Optional[float] = None,
+        is_passable: Optional[bool] = None,
+        **kwargs: Any,
     ) -> None:
         """Update runtime hazard, closure, flood depth, or congestion state of an edge.
 

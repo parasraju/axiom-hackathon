@@ -13,6 +13,7 @@ from app.models.schemas import (
     CrowdAssignResponse,
     IncidentReport,
     Shelter,
+    AuditEvent,
 )
 from app.simulation.scenario_manager import ScenarioManager
 from app.routing.router import SafeRouter
@@ -23,6 +24,25 @@ router = APIRouter()
 # Singleton scenario manager
 scenario_mgr = ScenarioManager("monsoon_demo")
 safe_router = SafeRouter(scenario_mgr.road_graph)
+
+
+def sync_graph_to_minute(minute: int) -> None:
+    """Synchronize road graph runtime state with snapshot at given minute."""
+    snapshot = scenario_mgr.get_snapshot(minute)
+    features = snapshot.get("edges_geojson", {}).get("features", [])
+    for feat in features:
+        props = feat.get("properties", {})
+        edge_id = props.get("id") or props.get("edge_id")
+        if edge_id:
+            scenario_mgr.road_graph.update_edge_state(
+                edge_id,
+                flood_depth_m=props.get("flood_depth_m", 0.0),
+                congestion_ratio=props.get("congestion_ratio", 0.0),
+                status=props.get("status", "normal"),
+                travel_time_s=props.get("travel_time_s", 60.0),
+                is_open=props.get("is_open", True),
+                is_passable=props.get("is_passable", True),
+            )
 
 
 class AdvanceRequest(BaseModel):
@@ -57,7 +77,7 @@ class ShelterUpdateRequest(BaseModel):
 def health_check() -> Dict[str, str]:
     return {
         "status": "ok",
-        "service": "SafeRoute Emergency Evacuation Backend",
+        "service": "SafeRoute API",
         "version": "1.0.0",
     }
 
@@ -66,11 +86,12 @@ def health_check() -> Dict[str, str]:
 def list_scenarios() -> List[Dict[str, Any]]:
     return [
         {
-            "id": "monsoon_demo",
+            "id": scenario_mgr.scenario_id,
             "name": "Riverdale Monsoon Evacuation Scenario",
             "description": "Simulated river crest flooding, low underpass bridge closure, crowd congestion, and capacity-constrained shelter relocation.",
             "duration_minutes": 90,
             "step_minutes": 15,
+            "keyframe_minutes": [0, 15, 30, 45, 60, 75, 90],
             "is_simulated": True,
         }
     ]
@@ -83,10 +104,15 @@ def get_scenario(scenario_id: str) -> Dict[str, Any]:
     return {
         "id": scenario_mgr.scenario_id,
         "name": "Riverdale Monsoon Evacuation Scenario",
+        "description": "Simulated river crest flooding, low underpass bridge closure, crowd congestion, and capacity-constrained shelter relocation.",
+        "duration_minutes": 90,
+        "step_minutes": 15,
+        "keyframe_minutes": [0, 15, 30, 45, 60, 75, 90],
         "current_minute": scenario_mgr.current_minute,
         "origins_count": len(scenario_mgr.origins),
         "shelters_count": len(scenario_mgr.shelters),
         "road_edges_count": len(scenario_mgr.edges),
+        "is_simulated": True,
     }
 
 
@@ -99,7 +125,7 @@ def get_scenario_timeline(scenario_id: str) -> List[Dict[str, Any]]:
 
 
 @router.get("/scenarios/{scenario_id}/snapshot")
-def get_scenario_snapshot(scenario_id: str, minute: int = Query(0, ge=0, le=120)) -> Dict[str, Any]:
+def get_scenario_snapshot(scenario_id: str, minute: int = Query(0, ge=0)) -> Dict[str, Any]:
     if scenario_id != scenario_mgr.scenario_id:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return scenario_mgr.get_snapshot(minute)
@@ -109,41 +135,66 @@ def get_scenario_snapshot(scenario_id: str, minute: int = Query(0, ge=0, le=120)
 def advance_scenario(scenario_id: str, payload: AdvanceRequest) -> Dict[str, Any]:
     if scenario_id != scenario_mgr.scenario_id:
         raise HTTPException(status_code=404, detail="Scenario not found")
-    return scenario_mgr.advance_time(payload.minute)
+    snapshot = scenario_mgr.advance_time(payload.minute)
+    sync_graph_to_minute(payload.minute)
+    return snapshot
 
 
 @router.post("/scenarios/{scenario_id}/reset")
 def reset_scenario(scenario_id: str) -> Dict[str, Any]:
     if scenario_id != scenario_mgr.scenario_id:
         raise HTTPException(status_code=404, detail="Scenario not found")
-    return scenario_mgr.reset()
+    snapshot = scenario_mgr.reset()
+    sync_graph_to_minute(0)
+    return snapshot
 
 
 @router.post("/scenarios/{scenario_id}/closures")
 def toggle_road_closure(scenario_id: str, payload: ClosureToggleRequest) -> Dict[str, Any]:
     if scenario_id != scenario_mgr.scenario_id:
         raise HTTPException(status_code=404, detail="Scenario not found")
-    return scenario_mgr.toggle_edge_closure(payload.edge_id, payload.is_open, payload.reason)
+    snapshot = scenario_mgr.toggle_edge_closure(payload.edge_id, payload.is_open, payload.reason)
+    sync_graph_to_minute(scenario_mgr.current_minute)
+    return snapshot
 
 
 @router.post("/routes/plan", response_model=RouteResponse)
 def plan_route(payload: RouteRequest) -> RouteResponse:
     """Dynamic hazard-aware evacuation route calculation with mode filtering and resilience score."""
     # Ensure current graph matches evaluated snapshot minute
-    snapshot = scenario_mgr.get_snapshot(payload.departure_minute)
-    # Origin resolution (by ID or nearest coordinates)
+    sync_graph_to_minute(payload.departure_minute)
+
+    # Origin resolution (by ID, entity mapping, or nearest coordinates)
     origin_node = payload.origin_id
     if not origin_node and payload.origin_coords:
         origin_node = scenario_mgr.road_graph.find_nearest_node(
             payload.origin_coords[0], payload.origin_coords[1]
         )
+    elif origin_node:
+        for o in scenario_mgr.origins:
+            if o.id == origin_node:
+                origin_node = o.node_id
+                break
+        for s in scenario_mgr.shelters:
+            if s.id == origin_node:
+                origin_node = scenario_mgr.road_graph.find_nearest_node(s.lon, s.lat)
+                break
 
-    # Destination resolution (by ID or nearest coordinates)
+    # Destination resolution (by ID, entity mapping, or nearest coordinates)
     destination_node = payload.destination_id
     if not destination_node and payload.destination_coords:
         destination_node = scenario_mgr.road_graph.find_nearest_node(
             payload.destination_coords[0], payload.destination_coords[1]
         )
+    elif destination_node:
+        for s in scenario_mgr.shelters:
+            if s.id == destination_node:
+                destination_node = scenario_mgr.road_graph.find_nearest_node(s.lon, s.lat)
+                break
+        for o in scenario_mgr.origins:
+            if o.id == destination_node:
+                destination_node = o.node_id
+                break
 
     if not origin_node or not destination_node:
         return RouteResponse(
@@ -153,11 +204,12 @@ def plan_route(payload: RouteRequest) -> RouteResponse:
             warnings=["Could not resolve origin or destination to a network node."],
         )
 
-    # Route planning
+    # Route planning via SafeRouter
+    mode_str = payload.mode.value if hasattr(payload.mode, "value") else str(payload.mode)
     return safe_router.plan_route(
         origin_id=origin_node,
         destination_id=destination_node,
-        mode=payload.mode.value if hasattr(payload.mode, "value") else str(payload.mode),
+        mode=mode_str,
         departure_minute=payload.departure_minute,
         alternatives=payload.alternatives,
     )
@@ -166,15 +218,21 @@ def plan_route(payload: RouteRequest) -> RouteResponse:
 @router.post("/evacuation/assign", response_model=CrowdAssignResponse)
 def assign_evacuation(payload: CrowdAssignRequest) -> CrowdAssignResponse:
     """Assign population batches from origins to reachable shelters with capacity constraints."""
+    if payload.scenario_id != scenario_mgr.scenario_id:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+
+    sync_graph_to_minute(payload.minute)
+
     origins = scenario_mgr.origins
     if payload.origin_ids:
         origins = [o for o in origins if o.id in payload.origin_ids]
 
+    mode_str = payload.mode.value if hasattr(payload.mode, "value") else str(payload.mode)
     resp, _ = scenario_mgr.shelter_allocator.assign_evacuees(
         origins=origins,
         shelters=scenario_mgr.shelters,
         minute=payload.minute,
-        mode=payload.mode.value if hasattr(payload.mode, "value") else str(payload.mode),
+        mode=mode_str,
     )
     return resp
 
@@ -196,12 +254,21 @@ def update_shelter(shelter_id: str, payload: ShelterUpdateRequest) -> Dict[str, 
     if payload.status is not None:
         target.status = payload.status
 
+    scenario_mgr.audit_events.append(
+        AuditEvent(
+            id=f"audit_{len(scenario_mgr.audit_events) + 1}",
+            minute=scenario_mgr.current_minute,
+            action="shelter_updated",
+            details={"shelter_id": shelter_id, "capacity": payload.capacity, "status": payload.status},
+        )
+    )
     scenario_mgr.build_timeline()
+    sync_graph_to_minute(scenario_mgr.current_minute)
     return target.model_dump()
 
 
 @router.get("/reports")
-def list_reports(status: Optional[str] = None) -> List[IncidentReport]:
+def list_reports(status: Optional[str] = Query(None)) -> List[IncidentReport]:
     return scenario_mgr.incident_verifier.list_reports(status=status)
 
 
@@ -214,9 +281,10 @@ def submit_report(payload: ReportSubmitRequest) -> IncidentReport:
         description=payload.description,
         reporter_hash=payload.reporter_hash,
     )
-    # If report was auto-verified, rebuild timeline
+    # If report was auto-verified, rebuild timeline and sync graph
     if report.status == "verified":
         scenario_mgr.build_timeline()
+        sync_graph_to_minute(scenario_mgr.current_minute)
     return report
 
 
@@ -231,6 +299,7 @@ def review_report(report_id: str, payload: ReviewReportRequest) -> IncidentRepor
         raise HTTPException(status_code=404, detail="Report not found")
     # Rebuild scenario timeline to propagate review decision
     scenario_mgr.build_timeline()
+    sync_graph_to_minute(scenario_mgr.current_minute)
     return report
 
 
