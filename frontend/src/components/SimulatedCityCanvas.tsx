@@ -881,7 +881,6 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
         {shelters.map((shelter) => {
           const [sx, sy] = project(shelter.lon, shelter.lat);
           const isFull = shelter.status?.toLowerCase() === 'full' || (shelter.occupancy || 0) >= (shelter.capacity || 1);
-          const badgeColor = isFull ? '#ef4444' : '#2563eb';
 
           // Non-colliding label offsets so roads and text NEVER collide
           let lx = 0;
@@ -898,7 +897,13 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
           } else if (shelter.id === 'shelter_hill_station') {
             lx = 45;
             ly = 0;
+          } else if (shelter.id === 'shelter_regional_overflow') {
+            lx = 50;
+            ly = -38;
           }
+
+          const isOverflow = shelter.id === 'shelter_regional_overflow';
+          const badgeColor = isFull ? '#ef4444' : isOverflow ? '#06b6d4' : '#2563eb';
 
           return (
             <g

@@ -5,8 +5,9 @@ import {
   Car,
   Navigation,
   AlertCircle,
+  AlertTriangle,
   Loader2,
-  Route,
+  Tent,
 } from 'lucide-react';
 import type {
   OriginZone,
@@ -27,8 +28,9 @@ export interface RoutePlannerProps {
   onSelectRoute: (candidate: RouteCandidate) => void;
   loading: boolean;
   onClearRoute?: () => void;
+  onActivateOverflow?: () => void;
+  isOverflowActive?: boolean;
 }
-
 
 const FALLBACK_ORIGINS: Partial<OriginZone>[] = [
   { id: 'origin_central', name: 'Downtown Central Sector', node_id: 'N05', population: 500 },
@@ -53,8 +55,9 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   onSelectRoute,
   loading,
   onClearRoute,
+  onActivateOverflow,
+  isOverflowActive = false,
 }) => {
-
   const effectiveOrigins = origins.length > 0 ? origins : (FALLBACK_ORIGINS as OriginZone[]);
   const effectiveShelters = shelters.length > 0 ? shelters : (FALLBACK_SHELTERS as Shelter[]);
 
@@ -94,6 +97,24 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   };
 
   const selectedShelterObj = effectiveShelters.find((s) => s.id === selectedDest);
+  const selectedShelterIsFull = Boolean(
+    selectedShelterObj &&
+      ((selectedShelterObj.occupancy || 0) >= selectedShelterObj.capacity ||
+        selectedShelterObj.status?.toLowerCase() === 'full')
+  );
+
+  const allSheltersFull =
+    effectiveShelters.length > 0 &&
+    effectiveShelters.every(
+      (s) => (s.occupancy || 0) >= s.capacity || s.status?.toLowerCase() === 'full'
+    );
+
+  const firstOpenShelter = effectiveShelters.find(
+    (s) =>
+      (s.occupancy || 0) < s.capacity &&
+      s.status?.toLowerCase() !== 'full' &&
+      s.status?.toLowerCase() !== 'closed'
+  );
 
   return (
     <div className="bg-slate-900/95 backdrop-blur border border-slate-800 rounded-xl p-4 text-white shadow-xl space-y-4">
@@ -109,6 +130,33 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           T+{currentMinute}m Conditions
         </span>
       </div>
+
+      {/* ALL SHELTERS FULL ALERT CALLOUT */}
+      {allSheltersFull && (
+        <div className="p-3.5 rounded-xl bg-red-950/80 border border-red-500/60 text-xs text-red-200 space-y-2.5 shadow-lg shadow-red-950/40 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 font-bold text-red-300 uppercase tracking-wide text-xs">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 animate-pulse" />
+            <span>All Evacuation Shelters at 100% Capacity!</span>
+          </div>
+          <p className="text-[11px] text-red-200/90 leading-relaxed">
+            No verified open destination available in city shelters. Overbooking is restricted to prevent fatal bottlenecking and gate stampedes.
+          </p>
+          {!isOverflowActive && onActivateOverflow ? (
+            <button
+              type="button"
+              onClick={onActivateOverflow}
+              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Tent className="w-3.5 h-3.5" />
+              <span>Deploy Regional Mutual Aid Overflow Camp (+500 Spots)</span>
+            </button>
+          ) : (
+            <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-semibold flex items-center gap-2">
+              <span>✅ Regional Mutual Aid Camp deployed. Select below to route.</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3.5">
         {/* Origin Selector (dropdown from origins with node IDs) */}
@@ -136,7 +184,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           </select>
         </div>
 
-        {/* Destination Selector (dropdown from shelters with accessibility tags) */}
+        {/* Destination Selector (dropdown from shelters with accessibility and fullness tags) */}
         <div>
           <label
             htmlFor="destination-select"
@@ -148,23 +196,56 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             id="destination-select"
             value={selectedDest}
             onChange={(e) => setSelectedDest(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
+            className={`w-full bg-slate-800 border rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none font-medium cursor-pointer ${
+              selectedShelterIsFull
+                ? 'border-red-500/60 focus:border-red-500'
+                : 'border-slate-700 focus:border-blue-500'
+            }`}
           >
             {effectiveShelters.map((s) => {
-              const accessTag = s.accessible ? 'Accessible' : 'Inaccessible (Stairs)';
+              const accessTag = s.accessible ? 'Accessible' : 'Stairs Only';
+              const occ = s.occupancy || 0;
+              const cap = s.capacity;
+              const isFull = occ >= cap || s.status?.toLowerCase() === 'full';
+              const statusTag = isFull
+                ? `[⛔ FULL: ${occ}/${cap}]`
+                : `[✅ OPEN: ${Math.max(0, cap - occ)} left]`;
+
               return (
                 <option key={s.id} value={s.id}>
-                  {s.name} [{accessTag}] • Cap: {s.capacity}
+                  {s.name} {statusTag} • {accessTag}
                 </option>
               );
             })}
           </select>
 
+          {/* Selected Shelter is Full Warning Notice */}
+          {selectedShelterIsFull && (
+            <div className="mt-2 p-2.5 rounded-lg bg-amber-950/70 border border-amber-500/60 text-xs text-amber-200 space-y-1.5 animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300 text-[11px]">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                <span>Notice: Selected Shelter is 100% Full ({selectedShelterObj?.occupancy}/{selectedShelterObj?.capacity})</span>
+              </div>
+              <p className="text-[10.5px] text-amber-200/80 leading-relaxed">
+                SafeRoute calculates safe routes to full facilities for first responders, but arriving civilians will be diverted at the gates.
+              </p>
+              {firstOpenShelter && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDest(firstOpenShelter.id)}
+                  className="text-[11px] font-bold text-cyan-300 hover:text-cyan-200 underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span>&rarr; Switch to nearest open refuge: {firstOpenShelter.name}</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Accessibility Notice */}
           {selectedShelterObj && !selectedShelterObj.accessible && (
-            <p className="text-[11px] text-amber-400 mt-1 flex items-center gap-1">
+            <p className="text-[11px] text-amber-400 mt-1.5 flex items-center gap-1">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-              <span>Warning: Selected shelter has stairs/elevations and is not wheelchair accessible.</span>
+              <span>Warning: Selected shelter has stairs and is not wheelchair accessible.</span>
             </p>
           )}
         </div>
@@ -179,7 +260,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             <button
               type="button"
               onClick={() => setMode('walk')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                 mode === 'walk'
                   ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400/50'
                   : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200 hover:bg-slate-750'
@@ -193,7 +274,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             <button
               type="button"
               onClick={() => setMode('wheelchair')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                 mode === 'wheelchair'
                   ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400/50'
                   : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200 hover:bg-slate-750'
@@ -207,7 +288,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             <button
               type="button"
               onClick={() => setMode('vehicle')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition cursor-pointer ${
                 mode === 'vehicle'
                   ? 'bg-blue-600 text-white border-blue-400 shadow-md shadow-blue-600/30 ring-1 ring-blue-400/50'
                   : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200 hover:bg-slate-750'
@@ -222,7 +303,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           {mode === 'wheelchair' && (
             <p className="text-[10px] text-blue-300 mt-1.5 flex items-center gap-1">
               <Accessibility className="w-3 h-3 shrink-0" />
-              <span>Wheelchair routing excludes flights of stairs, steep inclines, and deep flood puddles (&gt;10cm).</span>
+              <span>Wheelchair routing excludes flights of stairs, steep inclines, and flood puddles (&gt;10cm).</span>
             </p>
           )}
           {mode === 'vehicle' && (
@@ -237,46 +318,44 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold tracking-wide shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+          className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold tracking-wide shadow-lg shadow-blue-600/30 transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed active:scale-[0.99]"
         >
           {loading ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-              <span>Calculating Safe Route...</span>
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+              <span>Evaluating Flood &amp; Network Constraints...</span>
             </>
           ) : (
             <>
-              <Navigation className="w-4 h-4 shrink-0" />
+              <Navigation className="w-4 h-4" />
               <span>Calculate Safe Route</span>
             </>
           )}
         </button>
       </form>
 
-      {/* Route Results Section */}
+      {/* Route Results Display */}
       {routeResult && (
-        <div className="space-y-2.5 pt-3 border-t border-slate-800">
+        <div className="pt-2 border-t border-slate-800 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Route className="w-3.5 h-3.5 text-blue-400" />
-              <span>
-                {routeResult.status === 'route_found'
-                  ? 'Calculated Route Options:'
-                  : 'Route Calculation Status:'}
-              </span>
-            </div>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Evaluated Trajectories
+            </span>
             <div className="flex items-center gap-2">
-              {routeResult.status === 'route_found' && (
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {1 + (routeResult.alternatives?.length || 0)} candidate{routeResult.alternatives?.length ? 's' : ''}
-                </span>
-              )}
+              <span
+                className={`text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase ${
+                  routeResult.status === 'route_found'
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/60'
+                    : 'bg-red-950 text-red-300 border border-red-800/60'
+                }`}
+              >
+                {routeResult.status === 'route_found' ? 'Passable Route Found' : 'No Route Available'}
+              </span>
               {onClearRoute && (
                 <button
                   type="button"
                   onClick={onClearRoute}
-                  className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition border border-slate-700 cursor-pointer"
-                  title="Clear active route from map"
+                  className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
                 >
                   Clear
                 </button>
@@ -284,51 +363,51 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             </div>
           </div>
 
-
-          {/* Emergency Warning when no route is found */}
-          {routeResult.status === 'no_route_found' ? (
-            <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-700/80 text-red-200 text-xs space-y-1.5 shadow-lg shadow-red-950/40">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
-                <div className="space-y-0.5">
-                  <div className="font-bold text-red-300">
-                    No verified safe route available. All river crossings flooded or blocked.
-                  </div>
-                  <p className="text-[11px] text-red-300/80 leading-relaxed">
-                    {routeResult.warnings && routeResult.warnings.length > 0
-                      ? routeResult.warnings.join(' • ')
-                      : 'Severe flooding and road closures prevent safe evacuation along this path.'}
-                  </p>
+          {/* Warnings List */}
+          {routeResult.warnings && routeResult.warnings.length > 0 && (
+            <div className="space-y-1">
+              {routeResult.warnings.map((w, idx) => (
+                <div
+                  key={idx}
+                  className="p-2 rounded bg-amber-950/60 border border-amber-600/50 text-amber-300 text-[11px] flex items-start gap-1.5"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
+                  <span>{w}</span>
                 </div>
-              </div>
+              ))}
             </div>
-          ) : (
-            /* Render RouteCard for primary route and alternatives */
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-              {routeResult.primary_route && (
-                <RouteCard
-                  candidate={routeResult.primary_route}
-                  isPrimary={true}
-                  isSelected={selectedRouteId === routeResult.primary_route.route_id}
-                  onSelect={() => onSelectRoute(routeResult.primary_route!)}
-                />
-              )}
+          )}
 
-              {routeResult.alternatives?.map((alt) => (
+          {/* Primary Route Card */}
+          {routeResult.primary_route && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
+                Primary Recommended Path
+              </span>
+              <RouteCard
+                candidate={routeResult.primary_route}
+                isSelected={selectedRouteId === routeResult.primary_route.route_id}
+                onSelect={() => onSelectRoute(routeResult.primary_route!)}
+                isPrimary={true}
+              />
+            </div>
+          )}
+
+          {/* Alternatives List */}
+          {routeResult.alternatives && routeResult.alternatives.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Alternative Safe Trajectories
+              </span>
+              {routeResult.alternatives.map((alt) => (
                 <RouteCard
                   key={alt.route_id}
                   candidate={alt}
-                  isPrimary={false}
                   isSelected={selectedRouteId === alt.route_id}
                   onSelect={() => onSelectRoute(alt)}
+                  isPrimary={false}
                 />
               ))}
-
-              {!routeResult.primary_route && (!routeResult.alternatives || routeResult.alternatives.length === 0) && (
-                <div className="p-3 rounded-lg bg-slate-800/60 text-center text-xs text-slate-400">
-                  No route paths returned for current constraints.
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -336,3 +415,5 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
     </div>
   );
 };
+
+export default RoutePlanner;

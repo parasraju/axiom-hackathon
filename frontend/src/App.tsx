@@ -6,8 +6,13 @@ import {
   Radio,
   Wifi,
 } from 'lucide-react';
-import { api } from './api/client';
-import { FALLBACK_TIMELINE } from './data/offlineFallback';
+import { api, apiFetch } from './api/client';
+import {
+  FALLBACK_TIMELINE,
+  BASELINE_SHELTERS,
+  OVERFLOW_SHELTER,
+  offlineAssignEvacuation,
+} from './data/offlineFallback';
 import type {
   ScenarioSnapshot,
   RouteResponse,
@@ -45,6 +50,7 @@ export function App() {
 
   // Shelter & Evacuation state
   const [batchLoading, setBatchLoading] = useState<boolean>(false);
+  const [isOverflowActive, setIsOverflowActive] = useState<boolean>(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'routes' | 'shelters'>('routes');
 
   // Authority modal state
@@ -176,7 +182,9 @@ export function App() {
   const handleRunBatchEvacuation = async () => {
     try {
       setBatchLoading(true);
-      const res = await api.assignEvacuation(currentMinute, 'walk');
+      const res = await api.assignEvacuation(currentMinute, 'walk', {
+        overflowActive: isOverflowActive,
+      });
       if (res && res.shelter_allocations) {
         setTimeline((prev) =>
           prev.map((snap) => ({
@@ -201,16 +209,75 @@ export function App() {
           }))
         );
       }
-      try {
-        await fetchTimelineData();
-      } catch {
-        // Keep local state
-      }
     } catch (err) {
       console.error('Crowd assignment failed:', err);
     } finally {
       setBatchLoading(false);
     }
+  };
+
+  // Reset crowd back to 0 evacuees (empty shelters)
+  const handleResetCrowd = async () => {
+    setIsOverflowActive(false);
+    setTimeline((prev) =>
+      prev.map((snap) => ({
+        ...snap,
+        shelters: BASELINE_SHELTERS.map((s) => ({
+          ...s,
+          occupancy: 0,
+          status: 'open' as const,
+        })),
+        metrics: {
+          ...snap.metrics,
+          assigned_count: 0,
+          unassigned_count: snap.metrics?.total_evacuees || 1250,
+        },
+      }))
+    );
+    try {
+      await apiFetch('/shelters/reset', { method: 'POST' });
+    } catch {
+      // Keep local state
+    }
+  };
+
+  // Test "All Shelters Full" surge scenario (100% capacity)
+  const handleSimulateAllFull = () => {
+    setIsOverflowActive(false);
+    const fullAlloc = offlineAssignEvacuation(currentMinute, { forceAllFull: true });
+    setTimeline((prev) =>
+      prev.map((snap) => ({
+        ...snap,
+        shelters: (snap.shelters || []).map((s) => ({
+          ...s,
+          occupancy: s.capacity,
+          status: 'full' as const,
+        })),
+        metrics: {
+          ...snap.metrics,
+          assigned_count: fullAlloc.total_assigned,
+          unassigned_count: fullAlloc.total_unassigned,
+          total_evacuees: fullAlloc.total_evacuees,
+        },
+      }))
+    );
+  };
+
+  // Activate Regional Airport Mutual Aid Overflow Camp (+500 capacity)
+  const handleActivateOverflow = () => {
+    setIsOverflowActive(true);
+    setTimeline((prev) =>
+      prev.map((snap) => {
+        const hasOverflow = (snap.shelters || []).some((s) => s.id === OVERFLOW_SHELTER.id);
+        const updatedShelters = hasOverflow
+          ? snap.shelters
+          : [...(snap.shelters || []), OVERFLOW_SHELTER];
+        return {
+          ...snap,
+          shelters: updatedShelters,
+        };
+      })
+    );
   };
 
   // Road closure override handler
@@ -302,6 +369,7 @@ export function App() {
   const handleReset = async () => {
     setIsPlaying(false);
     setCurrentMinute(0);
+    setIsOverflowActive(false);
     try {
       await api.resetScenario('monsoon_demo');
       await fetchTimelineData();
@@ -440,12 +508,18 @@ export function App() {
                 onSelectRoute={(candidate) => setSelectedRoute(candidate)}
                 loading={routeLoading}
                 onClearRoute={handleClearRoute}
+                onActivateOverflow={handleActivateOverflow}
+                isOverflowActive={isOverflowActive}
               />
             ) : (
               <ShelterPanel
                 shelters={currentSnapshot?.shelters || []}
                 onRunBatchEvacuation={handleRunBatchEvacuation}
                 batchLoading={batchLoading}
+                onResetCrowd={handleResetCrowd}
+                onSimulateAllFull={handleSimulateAllFull}
+                onActivateOverflow={handleActivateOverflow}
+                isOverflowActive={isOverflowActive}
               />
             )}
           </div>

@@ -280,6 +280,16 @@ def update_shelter(shelter_id: str, payload: ShelterUpdateRequest) -> Dict[str, 
     return target.model_dump()
 
 
+@router.post("/shelters/reset")
+def reset_shelters() -> List[Dict[str, Any]]:
+    from app.data.seed_data import get_seed_shelters
+    scenario_mgr.shelters = get_seed_shelters()
+    scenario_mgr.build_timeline()
+    sync_graph_to_minute(scenario_mgr.current_minute)
+    return [s.model_dump() for s in scenario_mgr.shelters]
+
+
+
 @router.get("/reports")
 def list_reports(status: Optional[str] = Query(None)) -> List[IncidentReport]:
     return scenario_mgr.incident_verifier.list_reports(status=status)

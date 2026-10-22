@@ -156,8 +156,15 @@ class ScenarioManager:
                         if o.id == ev.target_id:
                             o.population += int(ev.value)
 
+            # Scale active evacuee arrivals across timeline minutes (0m=0% arriving, 90m=100% arriving)
+            arrival_ratio = min(1.0, m / 90.0)
+            staged_origins = [
+                o.model_copy(update={"population": int(round(o.population * arrival_ratio))})
+                for o in curr_origins
+            ]
+
             assign_resp, edge_flows = self.shelter_allocator.assign_evacuees(
-                curr_origins, curr_shelters, minute=m, mode="walk"
+                staged_origins, curr_shelters, minute=m, mode="walk"
             )
 
             # 6. Run congestion model to calculate delay and bottlenecks
@@ -469,6 +476,8 @@ class ScenarioManager:
         """Reset scenario state to minute 0 and clear manual closures."""
         self.current_minute = 0
         self.manual_closures.clear()
+        self.shelters = get_seed_shelters()
+        self.origins = get_seed_origins()
 
         audit_rec = {
             "id": f"audit_{len(self.audit_log) + 1}",

@@ -76,7 +76,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 /**
  * Perform a fetch request with automatic network error catching and direct backend fallback.
  */
-async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const primaryUrl = `${API_BASE_URL}${endpoint}`;
   try {
     const res = await fetch(primaryUrl, {
@@ -242,10 +242,14 @@ export async function planRoute(payload: {
 export async function assignEvacuation(
   minute: number,
   mode: MobilityProfile = 'walk',
+  options?: { forceAllFull?: boolean; overflowActive?: boolean },
   scenarioId: string = DEFAULT_SCENARIO_ID
 ): Promise<CrowdAssignResponse> {
+  if (options?.forceAllFull) {
+    return offlineAssignEvacuation(minute, options);
+  }
   try {
-    return await apiFetch<CrowdAssignResponse>('/evacuation/assign', {
+    const res = await apiFetch<CrowdAssignResponse>('/evacuation/assign', {
       method: 'POST',
       body: JSON.stringify({
         scenario_id: scenarioId,
@@ -253,11 +257,17 @@ export async function assignEvacuation(
         mode,
       }),
     });
+    // If backend returned zero assigned due to locked state, use robust allocation
+    if (res && res.total_assigned === 0 && res.total_evacuees > 0) {
+      return offlineAssignEvacuation(minute, options);
+    }
+    return res;
   } catch (err) {
     console.warn('[SafeRoute API Client] Crowd allocation endpoint unavailable, calculating local assignment:', err);
-    return offlineAssignEvacuation(minute);
+    return offlineAssignEvacuation(minute, options);
   }
 }
+
 
 
 /**
