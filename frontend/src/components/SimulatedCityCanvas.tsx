@@ -55,7 +55,7 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [selectedEdge, setSelectedEdge] = useState<any | null>(null);
-  const [legendOpen, setLegendOpen] = useState<boolean>(true);
+  const [legendOpen, setLegendOpen] = useState<boolean>(false);
   const [highlightLineType, setHighlightLineType] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -171,19 +171,16 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      className="relative w-full h-full bg-[#030712] overflow-hidden select-none cursor-grab active:cursor-grabbing"
+      className="relative h-full w-full cursor-grab select-none overflow-hidden bg-[#071a1e] active:cursor-grabbing"
     >
       {/* 1. Tactical HUD Header & Map Control Bar */}
       <div className="absolute top-3 left-3 z-10 flex flex-wrap items-center gap-2 pointer-events-auto">
         {/* City Indicator Badge */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/95 border border-cyan-500/30 text-white shadow-2xl backdrop-blur-md text-xs">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-          </span>
-          <span className="font-mono font-bold tracking-wider text-cyan-300">RIVERDALE VECTOR MAP</span>
-          <span className="text-[10px] text-emerald-400 font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/30">
-            OFFLINE READY
+        <div className="flex items-center gap-2 rounded-md border border-[#315256] bg-[#0b2226]/95 px-3 py-1.5 text-xs text-white">
+          <span className="h-1.5 w-1.5 rounded-full bg-teal-400"></span>
+          <span className="font-semibold text-slate-100">Riverdale</span>
+          <span className="rounded border border-[#315256] bg-[#102d31] px-1.5 py-0.5 text-[10px] font-medium text-slate-300">
+            Offline map
           </span>
         </div>
 
@@ -191,19 +188,20 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
         <button
           type="button"
           onClick={() => setLegendOpen(!legendOpen)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-xl backdrop-blur-md transition active:scale-95 cursor-pointer border ${
+          aria-expanded={legendOpen}
+          className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
             legendOpen
-              ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/50 shadow-cyan-950/50'
-              : 'bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/80'
+              ? 'border-teal-700/60 bg-teal-900/50 text-teal-200'
+              : 'border-[#315256] bg-[#0b2226]/95 text-slate-300 hover:bg-[#173a3e] hover:text-white'
           }`}
-          title="Toggle Line Meanings & Map Legend"
+          title="Toggle map legend"
         >
-          <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Line Meanings &amp; Legend</span>
+          <HelpCircle className="h-3.5 w-3.5 text-teal-300" />
+          <span>Map legend</span>
           {legendOpen ? (
-            <EyeOff className="w-3 h-3 text-cyan-400/80 ml-0.5" />
+            <EyeOff className="ml-0.5 h-3 w-3 text-teal-300" />
           ) : (
-            <Eye className="w-3 h-3 text-cyan-400/80 ml-0.5" />
+            <Eye className="ml-0.5 h-3 w-3 text-teal-300" />
           )}
         </button>
 
@@ -211,19 +209,19 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
         <button
           type="button"
           onClick={handleResetView}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-xl backdrop-blur-md text-xs font-semibold transition active:scale-95 cursor-pointer"
+          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-[#315256] bg-[#0b2226]/95 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-[#173a3e]"
           title="Reset city camera view"
         >
-          <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="hidden sm:inline">Reset View</span>
+          <Maximize2 className="h-3.5 w-3.5 text-teal-300" />
+          <span className="hidden sm:inline">Focus network</span>
         </button>
 
         {/* Zoom Controls */}
-        <div className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl p-0.5 shadow-xl backdrop-blur-md">
+        <div className="flex items-center rounded-md border border-[#315256] bg-[#0b2226]/95 p-0.5">
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(3.5, z * 1.2))}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="cursor-pointer rounded p-1.5 text-slate-300 transition hover:bg-[#173a3e] hover:text-white"
             title="Zoom In"
           >
             <ZoomIn className="w-3.5 h-3.5" />
@@ -234,7 +232,7 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(0.7, z * 0.82))}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="cursor-pointer rounded p-1.5 text-slate-300 transition hover:bg-[#173a3e] hover:text-white"
             title="Zoom Out"
           >
             <ZoomOut className="w-3.5 h-3.5" />
@@ -244,15 +242,15 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
 
       {/* 2. Interactive Line Meanings & Map Legend Drawer (Floating Top-Right) */}
       {legendOpen && (
-        <div className="absolute top-14 right-3 z-30 w-80 sm:w-96 max-h-[calc(100vh-140px)] overflow-y-auto bg-slate-950/95 backdrop-blur-2xl border border-cyan-500/30 rounded-2xl p-4 shadow-2xl text-xs text-slate-200 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="pointer-events-auto absolute right-3 top-14 z-30 max-h-[calc(100vh-140px)] w-80 overflow-y-auto rounded-lg border border-[#315256] bg-[#0b2226]/95 p-4 text-xs text-slate-200 shadow-xl backdrop-blur animate-in fade-in slide-in-from-top-2 duration-200 sm:w-96">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
             <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-cyan-950/80 border border-cyan-500/40 text-cyan-400">
+              <span className="rounded border border-teal-700/50 bg-teal-900/40 p-1 text-teal-300">
                 <HelpCircle className="w-4 h-4" />
               </span>
               <div>
-                <h4 className="font-bold text-white text-xs tracking-wide">MAP LINE MEANINGS &amp; GUIDE</h4>
-                <p className="text-[10px] text-cyan-400/80 font-mono">Visual Guide for Road Statuses &amp; Routes</p>
+                <h4 className="text-xs font-semibold text-white">Map legend</h4>
+                <p className="text-[10px] text-slate-400">Road conditions and evacuation routes</p>
               </div>
             </div>
             <button
@@ -781,53 +779,29 @@ export const SimulatedCityCanvas: React.FC<SimulatedCityCanvasProps> = ({
           </g>
         </g>
 
-        {/* Alternative Route Overlay (Dashed purple) */}
+        {/* Alternative Route Overlay */}
         {altRoutePath && (
           <path
             d={altRoutePath}
             fill="none"
-            stroke="#c084fc"
-            strokeWidth="7"
+            stroke="#a78bfa"
+            strokeWidth="5"
             strokeDasharray="8,6"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         )}
 
-        {/* Primary Safe Route Overlay (Glowing animated cyan line) */}
+        {/* Primary Safe Route Overlay */}
         {primaryRoutePath && (
-          <g filter="url(#routeGlow)">
-            {/* Glowing wide underlayer */}
-            <path
-              d={primaryRoutePath}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="14"
-              strokeOpacity="0.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* Crisp primary line with directional animation */}
-            <path
-              d={primaryRoutePath}
-              fill="none"
-              stroke="#0284c7"
-              strokeWidth="7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {/* Dashed Animated Flow Indicator */}
-            <path
-              d={primaryRoutePath}
-              fill="none"
-              stroke="#ffffff"
-              strokeWidth="2.5"
-              strokeDasharray="6,14"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.9"
-            />
-          </g>
+          <path
+            d={primaryRoutePath}
+            fill="none"
+            stroke="#2dd4bf"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         )}
 
         {/* Origin Muster Zones Markers (Rendered on top of roads with padded cards) */}

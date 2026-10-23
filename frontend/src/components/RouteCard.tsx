@@ -52,31 +52,22 @@ export const RouteCard: React.FC<RouteCardProps> = ({
   return (
     <div
       onClick={onSelect}
-      className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+      className={`cursor-pointer rounded-lg border p-3.5 transition-colors ${
         isSelected
-          ? 'bg-blue-950/40 border-blue-500 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/50'
-          : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-850'
+          ? 'bg-[#123438] border-teal-600 shadow-sm'
+          : 'bg-[#0b2226] border-[#244044] hover:border-[#527578] hover:bg-[#10292d]'
       }`}
     >
       {/* Header: Title & Badges */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           {isSelected ? (
-            <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
           ) : (
             <div className="w-4 h-4 rounded-full border border-slate-600 shrink-0" />
           )}
           <span className="font-semibold text-xs text-white">
             {isPrimary ? 'Recommended Route' : 'Alternative Route'}
-          </span>
-          <span
-            className={`px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${
-              isPrimary
-                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}
-          >
-            {isPrimary ? 'Recommended' : 'Alternative'}
           </span>
         </div>
 
@@ -134,13 +125,13 @@ export const RouteCard: React.FC<RouteCardProps> = ({
           }}
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition ${
             isSelected
-              ? 'bg-blue-600/80 text-white border-blue-400 shadow-sm shadow-blue-500/20'
-              : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+              ? 'bg-teal-700 text-white border-teal-600'
+              : 'bg-[#102d31] text-slate-300 border-[#315256] hover:bg-[#173a3e] hover:text-white'
           }`}
         >
           {isSelected ? (
             <>
-              <MapPin className="w-3.5 h-3.5 text-blue-200" />
+              <MapPin className="w-3.5 h-3.5 text-teal-200" />
               <span>Active on Map</span>
             </>
           ) : (

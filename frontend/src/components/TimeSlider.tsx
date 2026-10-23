@@ -8,9 +8,9 @@ import {
   Waves,
   CheckCircle2,
   Flame,
+  Clock,
   ChevronUp,
   ChevronDown,
-  Sparkles,
 } from 'lucide-react';
 
 
@@ -115,14 +115,14 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
     if (isActive) {
       switch (severity) {
         case 'critical':
-          return 'bg-purple-900/80 text-purple-200 border-purple-500 shadow-lg shadow-purple-900/50 ring-1 ring-purple-400/50';
+          return 'bg-rose-950/90 text-rose-100 border-rose-700';
         case 'danger':
-          return 'bg-rose-900/80 text-rose-200 border-rose-500 shadow-lg shadow-rose-900/50 ring-1 ring-rose-400/50';
+          return 'bg-red-950/80 text-red-100 border-red-700';
         case 'caution':
-          return 'bg-amber-900/80 text-amber-200 border-amber-500 shadow-lg shadow-amber-900/50 ring-1 ring-amber-400/50';
+          return 'bg-amber-950/80 text-amber-100 border-amber-700';
         case 'normal':
         default:
-          return 'bg-cyan-900/80 text-cyan-200 border-cyan-500 shadow-lg shadow-cyan-900/50 ring-1 ring-cyan-400/50';
+          return 'bg-teal-950/80 text-teal-100 border-teal-700';
       }
     }
     return 'bg-slate-900/80 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200';
@@ -133,9 +133,9 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
     if (!kf) return 'bg-slate-600';
     switch (kf.severity) {
       case 'critical':
-        return 'bg-purple-500';
-      case 'danger':
         return 'bg-rose-500';
+      case 'danger':
+        return 'bg-red-500';
       case 'caution':
         return 'bg-amber-500';
       case 'normal':
@@ -147,22 +147,22 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
   // Ultra-minimized floating pill view
   if (isMinimized) {
     return (
-      <div className="flex items-center gap-2 p-1.5 px-3 bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-full shadow-2xl text-slate-200 select-none animate-in fade-in zoom-in-95 duration-200">
+      <div className="flex items-center gap-2 rounded-lg border border-[#315256] bg-[#0b2226]/95 p-1.5 px-3 text-slate-200 shadow-xl backdrop-blur select-none animate-in fade-in zoom-in-95 duration-200">
         <button
           type="button"
           onClick={onTogglePlay}
-          className={`w-7 h-7 rounded-full flex items-center justify-center transition ${
-            isPlaying ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-blue-600 text-white'
+          className={`flex h-7 w-7 items-center justify-center rounded-md transition ${
+            isPlaying ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-teal-700 text-white hover:bg-teal-600'
           }`}
           title={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
         </button>
 
-        <div className="flex items-baseline gap-1 px-2 font-mono text-xs font-bold text-cyan-300">
+        <div className="flex items-baseline gap-1 px-2 font-mono text-xs font-bold text-teal-300">
           <span>T+</span>
           <span className="text-sm text-white">{currentMinute}</span>
-          <span className="text-[10px] text-cyan-400/80">m</span>
+          <span className="text-[10px] text-teal-400/80">m</span>
         </div>
 
         <span className="text-xs text-slate-400 truncate max-w-[100px]">
@@ -172,7 +172,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
         <button
           type="button"
           onClick={() => setIsMinimized(false)}
-          className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          className="rounded-md p-1 text-slate-400 transition hover:bg-[#173a3e] hover:text-white"
           title="Expand Timeline Controls"
         >
           <ChevronUp className="w-4 h-4" />
@@ -182,22 +182,19 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-2 pointer-events-auto select-none transition-all duration-300">
+    <div className="pointer-events-auto mx-auto flex w-full max-w-4xl select-none flex-col gap-2 transition-all duration-300">
       {/* 1. Optional Expanded Highlights Drawer (Collapsible) */}
       {showDrawer && (
-        <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl p-3.5 shadow-2xl animate-in slide-in-from-bottom-3 fade-in duration-200">
+        <div className="rounded-lg border border-[#315256] bg-[#0b2226]/95 p-3.5 shadow-xl backdrop-blur animate-in slide-in-from-bottom-3 fade-in duration-200">
           {/* Header */}
           <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-800/80">
             <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+              <span className="text-xs font-semibold text-amber-200">
+                Scenario timeline
               </span>
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono">
-                Scenario Timeline Keyframes
-              </span>
-              <span className="text-[11px] text-slate-400 hidden sm:inline">
-                &bull; Monsoon Surge 90-Min Forecast
+              <span className="hidden text-[11px] text-slate-400 sm:inline">
+                <span className="px-1 text-slate-600">/</span> 90-minute forecast
               </span>
             </div>
 
@@ -231,7 +228,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
                     <span className="font-mono text-xs font-black">
                       T+{kf.minute}m
                     </span>
-                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'animate-pulse' : 'opacity-70'}`} />
+                    <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'text-white' : 'opacity-70'}`} />
                   </div>
                   <div className="text-[11px] font-semibold leading-tight truncate w-full" title={kf.title}>
                     {kf.shortLabel}
@@ -247,7 +244,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
       )}
 
       {/* 2. Main Sleek Compact Scrubber Bar */}
-      <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl px-3.5 py-2.5 shadow-2xl text-slate-100 flex flex-col sm:flex-row items-center gap-3">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-[#315256] bg-[#0b2226]/95 px-3.5 py-2.5 text-slate-100 shadow-xl backdrop-blur sm:flex-row">
         {/* Left: Playback Controls */}
         <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
           <div className="flex items-center gap-1.5">
@@ -256,10 +253,10 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
               type="button"
               onClick={onTogglePlay}
               aria-label={isPlaying ? 'Pause simulation' : 'Play simulation'}
-              className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer ${
+              className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                 isPlaying
-                  ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/30 ring-2 ring-amber-400/50'
-                  : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white shadow-blue-500/30'
+                  ? 'bg-amber-500 text-slate-950 hover:bg-amber-400'
+                  : 'bg-teal-700 text-white hover:bg-teal-600'
               }`}
             >
               {isPlaying ? (
@@ -280,21 +277,22 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
               type="button"
               onClick={onReset}
               title="Reset to T+0"
-              className="p-1.5 rounded-xl text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 transition cursor-pointer"
+              className="cursor-pointer rounded-md border border-[#315256] bg-[#102d31] p-1.5 text-slate-400 transition hover:bg-[#173a3e] hover:text-white"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
             {/* Speed Selector */}
-            <div className="flex items-center bg-slate-800/90 rounded-xl p-0.5 border border-slate-700/80">
+            <div className="flex items-center rounded-md border border-[#315256] bg-[#102d31] p-0.5">
               {SPEED_OPTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => onSpeedChange(s)}
+                  aria-pressed={speed === s}
                   className={`px-1.5 py-0.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer ${
                     speed === s
-                      ? 'bg-blue-600 text-white shadow-sm'
+                      ? 'bg-teal-700 text-white'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -305,8 +303,8 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
           </div>
 
           {/* Time Badge (Mobile visible) */}
-          <div className="flex items-center gap-1.5 sm:hidden bg-slate-950/80 px-2.5 py-1 rounded-xl border border-cyan-500/30">
-            <span className="text-[11px] font-black text-cyan-400 font-mono">T+{currentMinute}m</span>
+          <div className="flex items-center gap-1.5 rounded-md border border-[#315256] bg-[#102d31] px-2.5 py-1 sm:hidden">
+            <span className="font-mono text-[11px] font-semibold text-teal-300">T+{currentMinute}m</span>
             <span className="text-[10px] text-slate-400 font-medium truncate max-w-[80px]">
               {activeKeyframe?.shortLabel}
             </span>
@@ -317,9 +315,9 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
         <div className="flex-1 w-full px-2">
           <div className="relative flex items-center select-none py-1">
             {/* Background Track */}
-            <div className="absolute left-0 right-0 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div className="absolute left-0 right-0 h-1.5 overflow-hidden rounded-full bg-[#244044]">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-indigo-500 transition-all duration-200"
+              className="h-full bg-teal-500 transition-all duration-200"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -367,7 +365,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
                       aria-label={`Jump to T+${mark}m`}
                       className={`rounded-full transition-all duration-150 cursor-pointer flex items-center justify-center ${
                         isCurrent
-                          ? 'w-4 h-4 bg-cyan-300 ring-4 ring-cyan-500/40 shadow-lg shadow-cyan-500/50 scale-125'
+                          ? 'w-4 h-4 bg-teal-300 ring-4 ring-teal-500/30'
                           : isPassed
                           ? `w-3 h-3 ${dotColor} hover:scale-125 ring-2 ring-slate-900`
                           : 'w-2.5 h-2.5 bg-slate-700 hover:bg-slate-500 hover:scale-125 ring-2 ring-slate-900'
@@ -388,7 +386,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
                 onClick={() => onMinuteChange(mark)}
                 className={`transition-colors cursor-pointer text-center w-6 -mx-3 ${
                   mark === currentMinute
-                    ? 'text-cyan-300 font-bold scale-110'
+                    ? 'text-teal-300 font-semibold'
                     : 'text-slate-500 hover:text-slate-300'
                 }`}
               >
@@ -401,11 +399,11 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
         {/* Right: Active Status Badge & Drawer Toggle */}
         <div className="hidden sm:flex items-center gap-2.5 shrink-0">
           {/* Active Minute Pill */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 rounded-xl border border-cyan-500/30 shadow-inner">
+          <div className="flex items-center gap-2 rounded-md border border-[#315256] bg-[#102d31] px-3 py-1.5">
             <div className="flex items-baseline gap-1 font-mono">
-              <span className="text-xs font-bold text-cyan-400">T+</span>
+              <span className="text-xs font-semibold text-teal-300">T+</span>
               <span className="text-lg font-black text-white">{currentMinute}</span>
-              <span className="text-[10px] font-semibold text-cyan-400/80">min</span>
+              <span className="text-[10px] font-semibold text-teal-300/80">min</span>
             </div>
             <div className="h-4 w-px bg-slate-800" />
             <div className="text-left max-w-[110px]">
@@ -422,15 +420,16 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
           <button
             type="button"
             onClick={() => setShowDrawer(!showDrawer)}
+            aria-expanded={showDrawer}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition cursor-pointer ${
               showDrawer
-                ? 'bg-blue-600/30 text-blue-300 border-blue-500/50'
-                : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-700'
+                ? 'bg-teal-900/50 text-teal-200 border-teal-700/60'
+                : 'bg-[#102d31] text-slate-300 border-[#315256] hover:text-white hover:bg-[#173a3e]'
             }`}
-            title={showDrawer ? 'Hide keyframe cards' : 'Show scenario keyframe details'}
+            title={showDrawer ? 'Hide timeline events' : 'Show scenario timeline events'}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] font-semibold hidden md:inline">Keyframes</span>
+            <Clock className="h-3.5 w-3.5 text-teal-300" />
+            <span className="hidden text-[11px] font-semibold md:inline">Timeline events</span>
             {showDrawer ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
           </button>
 
@@ -438,7 +437,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
           <button
             type="button"
             onClick={() => setIsMinimized(true)}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="rounded-md p-1.5 text-slate-400 transition hover:bg-[#173a3e] hover:text-white"
             title="Minimize to floating pill"
           >
             <ChevronDown className="w-3.5 h-3.5" />

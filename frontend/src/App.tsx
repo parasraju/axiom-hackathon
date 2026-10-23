@@ -311,66 +311,51 @@ export function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 select-none">
-      {/* 1. App Top Navigation Bar */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 text-white shadow-md shadow-blue-500/30">
-            <ShieldAlert className="w-5 h-5" />
+    <div className="flex h-screen w-screen select-none flex-col overflow-hidden bg-[#071a1e] text-slate-100">
+      <header className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-[#18383b] bg-[#0b2428] px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-teal-400/20 bg-teal-500/10 text-teal-300">
+            <ShieldAlert className="h-[18px] w-[18px]" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold text-sm text-white tracking-wide">SafeRoute</h1>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 font-mono font-bold border border-blue-700/50">
-                PROTOTYPE v1.0
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 hidden sm:block">
-              Disaster-Aware Evacuation Simulator &amp; Safety-Constrained Navigation
+          <div className="min-w-0">
+            <h1 className="text-sm font-semibold tracking-wide text-white">SafeRoute</h1>
+            <p className="hidden truncate text-[11px] text-slate-400 sm:block">
+              Monsoon response <span className="px-1 text-slate-600">/</span> Evacuation planning
             </p>
           </div>
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-2.5">
-          {/* Standalone Simulated Engine Indicator */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs bg-slate-800/90 border-cyan-500/30 text-cyan-300 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-            <span className="text-[11px] font-semibold hidden sm:inline">Simulated Engine (Zero API)</span>
-            <span className="text-[11px] font-semibold sm:hidden">Simulated</span>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="hidden items-center gap-2 rounded-md border border-[#285256] bg-[#102d31] px-2.5 py-1.5 text-[11px] font-medium text-teal-200 sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-teal-400" />
+            <span>Scenario simulation</span>
           </div>
 
-          {/* Optional live sync indicator */}
           {backendOnline && (
-            <div className="hidden lg:flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full font-mono">
-              <Wifi className="w-3 h-3" />
-              <span>Backend Synced</span>
+            <div className="hidden items-center gap-1.5 rounded-md border border-emerald-800/50 bg-emerald-950/30 px-2.5 py-1.5 text-[11px] font-medium text-emerald-300 lg:flex">
+              <Wifi className="h-3 w-3" />
+              <span>API online</span>
             </div>
           )}
 
-
-          {/* Authority Command Console Toggle */}
           <button
             type="button"
             onClick={() => setIsAuthorityOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-blue-400 border border-blue-500/30 hover:border-blue-400 shadow transition cursor-pointer"
+            className="flex cursor-pointer items-center gap-2 rounded-md border border-teal-500/30 bg-[#123438] px-3 py-2 text-xs font-semibold text-teal-200 transition hover:border-teal-400/60 hover:bg-[#19464a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b2428]"
           >
-            <Radio className="w-3.5 h-3.5" />
-            <span>Authority Console</span>
+            <Radio className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Authority console</span>
+            <span className="sm:hidden">Console</span>
           </button>
         </div>
       </header>
 
-      {/* 2. Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Map & Time Slider Centerpiece */}
-        <div className="flex-1 flex flex-col relative h-full">
-          {/* Top Compact KPI Ribbon */}
-          <div className="p-2.5 bg-slate-950/80 border-b border-slate-800/80 backdrop-blur shrink-0 z-10">
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+        <section className="relative flex h-[54%] min-h-0 w-full flex-none flex-col md:h-full md:flex-1">
+          <div className="z-10 shrink-0 border-b border-[#18383b]/80 bg-[#071a1e]/90 p-2.5 backdrop-blur">
             <KpiStrip metrics={currentSnapshot?.metrics || null} minute={currentMinute} />
           </div>
 
-          {/* Interactive Map Canvas */}
           <div className="flex-1 relative">
             <MapCanvas
               snapshot={currentSnapshot}
@@ -382,8 +367,7 @@ export function App() {
             />
           </div>
 
-          {/* Floating Scrubbable Time Slider - Compact, Centered, Non-blocking */}
-          <div className="absolute bottom-3 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-[calc(100%-2rem)] sm:max-w-3xl z-20 pointer-events-auto">
+          <div className="pointer-events-auto absolute bottom-3 left-4 right-4 z-20 sm:left-1/2 sm:w-[calc(100%-2rem)] sm:max-w-3xl sm:-translate-x-1/2">
             <TimeSlider
               currentMinute={currentMinute}
               isPlaying={isPlaying}
@@ -394,41 +378,40 @@ export function App() {
               onReset={handleReset}
             />
           </div>
-        </div>
+        </section>
 
-        {/* Right Sidebar Control Tabs */}
-        <aside className="w-80 lg:w-96 border-l border-slate-800 bg-slate-950 flex flex-col shrink-0 z-10 shadow-2xl">
-          {/* Tab Selection */}
-          <div className="flex border-b border-slate-800 bg-slate-900/60 p-1">
+        <aside className="z-10 flex h-[46%] w-full shrink-0 flex-col border-t border-[#18383b] bg-[#091f23] shadow-2xl md:h-auto md:w-80 md:border-l md:border-t-0 lg:w-96">
+          <div className="flex border-b border-[#18383b] bg-[#0b2428]/80 p-1.5">
             <button
               type="button"
               onClick={() => setActiveSidebarTab('routes')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+              aria-pressed={activeSidebarTab === 'routes'}
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${
                 activeSidebarTab === 'routes'
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-teal-700 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Navigation className="w-3.5 h-3.5" />
+              <Navigation className="h-3.5 w-3.5" />
               <span>Safe Routes</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveSidebarTab('shelters')}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+              aria-pressed={activeSidebarTab === 'shelters'}
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-md py-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${
                 activeSidebarTab === 'shelters'
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-teal-700 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Home className="w-3.5 h-3.5" />
+              <Home className="h-3.5 w-3.5" />
               <span>Shelters</span>
             </button>
           </div>
 
-          {/* Active Tab Panel */}
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-4">
+          <div className="flex-1 space-y-4 overflow-y-auto p-3.5">
             {activeSidebarTab === 'routes' ? (
               <RoutePlanner
                 origins={currentSnapshot?.origins || []}
@@ -450,9 +433,8 @@ export function App() {
             )}
           </div>
         </aside>
-      </div>
+      </main>
 
-      {/* 3. Authority Modal */}
       <AuthorityModal
         isOpen={isAuthorityOpen}
         onClose={() => setIsAuthorityOpen(false)}
